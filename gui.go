@@ -35,7 +35,8 @@ var (
     enumChildWindows = mod.NewProc("EnumChildWindows")
     getWindowRect    = mod.NewProc("GetWindowRect")
     setWindowPos     = mod.NewProc("SetWindowPos")
-
+    // getWindowLong    = mod.NewProc("GetWindowLong") // x
+    
     mouse_event      = mod.NewProc("mouse_event")
     
     getClassName     = mod.NewProc("GetClassNameW")
@@ -157,6 +158,24 @@ func SetWindowSize(h HWND, posx, posy, width, height int32) {
 		0,0)
 }
 
+// --> panic: Failed to find GetWindowLong procedure in user32.dll: The specified procedure could not be found.
+// const (
+//     GWL_WNDPROC   = -4  // ウィンドウプロシージャのアドレスまたはウィンドウプロシージャのアドレスを示すハンドルを取得します
+//     GWL_HINSTANCE = -6  // アプリケーションのインスタンスハンドルを取得します
+//     GWL_HWNDPARENT= -8  // アプリケーションのインスタンスハンドルを取得します
+//     GWL_ID        = -12 // ウィンドウの ID を取得します
+//     GWL_STYLE     = -16 // ウィンドウスタイルを取得します
+//     GWL_EXSTYLE   = -20 // 拡張ウィンドウスタイルを取得します
+// )
+// // window information (nindex: GWL_xxxx...)
+// func GetWindowLong(h HWND, nindex int) int32 {
+//     r1, _, _ := syscall.Syscall(getWindowLong.Addr(), 2,
+//         uintptr(h),
+//         uintptr(nindex),
+//         0)
+//     return int32(r1)
+// }
+    
 const (
 	LEFTDOWN   = 0x00000002
 	LEFTUP     = 0x00000004
@@ -413,11 +432,11 @@ var keymaps map[string]byte = map[string]byte{
     "ZOOM": 0xfb,    
 }
 
-func PressedKey(key string) int {
+func PressedKey(key string) bool {
     v, ok := keymaps[key]
     if ok {
-        return GetAsyncKeyState(v)
+        return (GetAsyncKeyState(v) != 0)
     }
     fmt.Println("not found key name: ", key)
-    return  0
+    return  false
 }
