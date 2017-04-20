@@ -186,7 +186,72 @@ const (
 	RIGHTDOWN  = 0x00000008
 	RIGHTUP    = 0x00000010
 	WHEEL      = 0x00000800
+    HWHEEL     = 0x00001000
 )
+
+func MouseMoveAbs(x, y int) {
+	bit := MOVE | ABSOLUTE
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		uintptr(x),uintptr(y),
+        0,0,0)
+}
+
+func MouseMoveRel(x, y int) {
+	bit := MOVE
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		uintptr(x),uintptr(y),
+		0,0,0)
+}
+
+func MouseLButtonDown() {
+	bit := LEFTDOWN
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		0,0,0,0,
+		0)
+}
+
+func MouseLButtonUp() {
+	bit := LEFTUP
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		0,0,0,0,
+		0)
+}
+
+func MouseRButtonDown() {
+	bit := RIGHTDOWN
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		0,0,0,0,
+		0)
+}
+
+func MouseRButtonUp() {
+	bit := RIGHTUP
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		0,0,0,0,
+		0)
+}
+
+func MouseMButtonDown() {
+	bit := MIDDLEDOWN
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		0,0,0,0,
+		0)
+}
+
+func MouseMButtonUp() {
+	bit := MIDDLEUP
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		0,0,0,0,
+		0)
+}
 
 func ClickMouseLeft(posx, posy int32) {
 	SetCursorPos(posx, posy)
@@ -217,6 +282,17 @@ func ClickMouseMiddle(posx, posy int32) {
 
 func MouseMoveWheel(scroll int32) {
 	bit := WHEEL
+	scroll *= WHEEL_DELTA
+	syscall.Syscall6(mouse_event.Addr(), 5,
+		uintptr(bit),
+		0,0,
+		uintptr(scroll),
+		0,
+		0)
+}
+
+func MouseMoveHWheel(scroll int32) {
+	bit := HWHEEL
 	scroll *= WHEEL_DELTA
 	syscall.Syscall6(mouse_event.Addr(), 5,
 		uintptr(bit),
@@ -439,4 +515,25 @@ func PressedKey(key string) bool {
     }
     fmt.Println("not found key name: ", key)
     return  false
+}
+
+func printTreeClassNameSub(hwnd HWND, nest int) {
+    space := ""
+    for n := 0; n < nest; n++ {
+        space = space + "  "
+    }
+    str := GetClassName(hwnd)
+    fmt.Println(space + str)
+
+    hwnds := GetChildWindows(hwnd)
+    for _, chwnd := range hwnds {
+        printTreeClassNameSub(chwnd, nest + 1)
+    }
+}
+
+func PrintTreeClassName(hwnd HWND) {
+    // hwnd = GetDesktopWindow()
+    fmt.Println("--- PrintTreeClassName ---")
+    printTreeClassNameSub(hwnd, 0)
+    fmt.Println("--------------------------")
 }
