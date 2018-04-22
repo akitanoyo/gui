@@ -15,14 +15,17 @@ import (
 // func Syscall12(trap, nargs, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12 uintptr) ...
 // func Syscall15(trap, nargs, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15 uintptr) ...
 
+// POINT pos
 type POINT struct {
 	X, Y int32
 }
 
+// RECT window rect
 type RECT struct {
 	Left, Top, Right, Bottom int32
 }
 
+// HWND windows window handle
 type HWND uintptr
 
 var (
@@ -51,35 +54,42 @@ var (
     messageBox       = mod.NewProc("MessageBoxW")
 )
 
+// MessageBox popup messagebox
 func MessageBox(hwnd HWND, text, caption string, btype uint32) {
     ptext    := unsafe.Pointer(syscall.StringToUTF16Ptr(text))
     pcaption := unsafe.Pointer(syscall.StringToUTF16Ptr(caption))
     syscall.Syscall6(messageBox.Addr(), 4, uintptr(hwnd), uintptr(ptext), uintptr(pcaption), uintptr(btype), 0, 0)
 }
 
+// SendMessage send message
 func SendMessage(hwnd HWND, msg ,wparam, lparam uint32) {
     syscall.Syscall6(sendMessage.Addr(), 4, uintptr(hwnd), uintptr(msg),uintptr(wparam), uintptr(lparam), 0, 0)
 }
 
+// CloseWindow close window
 func CloseWindow(hwnd HWND) {
 	SendMessage(hwnd, WM_CLOSE, 0, 0)
 }
 
+// GetCursorPos get cursor pos
 func GetCursorPos() POINT {
      p := POINT{}
      getCursorPos.Call(uintptr(unsafe.Pointer(&p)))
      return p
 }
 
+// SetCursorPos set cursor pos
 func SetCursorPos(x, y int32) {
      syscall.Syscall(setCursorPos.Addr(), 2, uintptr(x), uintptr(y), 0)
 }
 
+// GetDesktopWindow get desktop window
 func GetDesktopWindow() HWND {
      r1, _, _ := syscall.Syscall(getDesktopWindow.Addr(), 0, 0, 0, 0)
      return HWND(r1)
 }
 
+// GetWindowText get window text(title)
 func GetWindowText(h HWND) string {
 	const bufSiz = 512
 	var buf [bufSiz]uint16
@@ -95,6 +105,7 @@ func GetWindowText(h HWND) string {
 	return name
 }
 
+// GetClassName get class name
 func GetClassName(h HWND) string {
 	const bufSiz = 512
 	var buf [bufSiz]uint16
@@ -110,6 +121,7 @@ func GetClassName(h HWND) string {
 	return name
 }
 
+// GetChildWindows get child windows
 func GetChildWindows(h HWND) []HWND {
 	hwnds := []HWND{};
 	f := func(h HWND, lparam uintptr) int {
@@ -122,6 +134,7 @@ func GetChildWindows(h HWND) []HWND {
 	return hwnds
 }
 
+// GetWindowRect get window rect
 func GetWindowRect(h HWND) RECT {
 	r := RECT{}
 	getWindowRect.Call(uintptr(h),
@@ -132,6 +145,7 @@ func GetWindowRect(h HWND) RECT {
 	return r
 }
 
+// SetWindowPos set window poss
 func SetWindowPos(h HWND, posx, posy, posex, posey int32) {
 	width  := posex - posx
 	height := posey - posy
@@ -146,6 +160,7 @@ func SetWindowPos(h HWND, posx, posy, posex, posey int32) {
 		0,0)
 }
 
+// SetWindowSize set window pos and size
 func SetWindowSize(h HWND, posx, posy, width, height int32) {
 	syscall.Syscall9(setWindowPos.Addr(), 7,
 		uintptr(h),
@@ -177,18 +192,29 @@ func SetWindowSize(h HWND, posx, posy, width, height int32) {
 // }
     
 const (
+    // LEFTDOWN mouse button
 	LEFTDOWN   = 0x00000002
+    // LEFTUP mouse button
 	LEFTUP     = 0x00000004
+    // MIDDLEDOWN mouse button
 	MIDDLEDOWN = 0x00000020
+    // MIDDLEUP mouse button
 	MIDDLEUP   = 0x00000040
+    // MOVE mouse button
 	MOVE       = 0x00000001
+    // ABSOLUTE mouse button
 	ABSOLUTE   = 0x00008000
+    // RIGHTDOWN mouse button
 	RIGHTDOWN  = 0x00000008
+    // RIGHTUP mouse button
 	RIGHTUP    = 0x00000010
+    // WHEEL mouse button
 	WHEEL      = 0x00000800
+    // HWHEEL mouse button
     HWHEEL     = 0x00001000
 )
 
+// MouseMoveAbs mouse move absolute
 func MouseMoveAbs(x, y int) {
 	bit := MOVE | ABSOLUTE
 	syscall.Syscall6(mouse_event.Addr(), 5,
@@ -197,6 +223,7 @@ func MouseMoveAbs(x, y int) {
         0,0,0)
 }
 
+// MouseMoveRel mouse move relocate
 func MouseMoveRel(x, y int) {
 	bit := MOVE
 	syscall.Syscall6(mouse_event.Addr(), 5,
@@ -205,6 +232,7 @@ func MouseMoveRel(x, y int) {
 		0,0,0)
 }
 
+// MouseLButtonDown mouse button down(left)
 func MouseLButtonDown() {
 	bit := LEFTDOWN
 	syscall.Syscall6(mouse_event.Addr(), 5,
@@ -213,6 +241,7 @@ func MouseLButtonDown() {
 		0)
 }
 
+// MouseLButtonUp mouse button up(left)
 func MouseLButtonUp() {
 	bit := LEFTUP
 	syscall.Syscall6(mouse_event.Addr(), 5,
@@ -221,6 +250,7 @@ func MouseLButtonUp() {
 		0)
 }
 
+// MouseRButtonDown mouse button down(right)
 func MouseRButtonDown() {
 	bit := RIGHTDOWN
 	syscall.Syscall6(mouse_event.Addr(), 5,
@@ -229,6 +259,7 @@ func MouseRButtonDown() {
 		0)
 }
 
+// MouseRButtonUp mouse button up(right)
 func MouseRButtonUp() {
 	bit := RIGHTUP
 	syscall.Syscall6(mouse_event.Addr(), 5,
@@ -237,6 +268,7 @@ func MouseRButtonUp() {
 		0)
 }
 
+// MouseMButtonDown mouse button down(middle)
 func MouseMButtonDown() {
 	bit := MIDDLEDOWN
 	syscall.Syscall6(mouse_event.Addr(), 5,
@@ -245,6 +277,7 @@ func MouseMButtonDown() {
 		0)
 }
 
+// MouseMButtonUp mouse button up(middle)
 func MouseMButtonUp() {
 	bit := MIDDLEUP
 	syscall.Syscall6(mouse_event.Addr(), 5,
@@ -253,6 +286,7 @@ func MouseMButtonUp() {
 		0)
 }
 
+// ClickMouseLeft click pos left button
 func ClickMouseLeft(posx, posy int32) {
 	SetCursorPos(posx, posy)
 	bit := LEFTDOWN | LEFTUP
@@ -262,6 +296,7 @@ func ClickMouseLeft(posx, posy int32) {
 		0)
 }
 
+// ClickMouseRight click pos right button
 func ClickMouseRight(posx, posy int32) {
 	SetCursorPos(posx, posy)
 	bit := RIGHTDOWN | RIGHTUP
@@ -271,6 +306,7 @@ func ClickMouseRight(posx, posy int32) {
 		0)
 }
 
+// ClickMouseMiddle click pos middle button
 func ClickMouseMiddle(posx, posy int32) {
 	SetCursorPos(posx, posy)
 	bit := MIDDLEDOWN | MIDDLEUP
@@ -280,6 +316,7 @@ func ClickMouseMiddle(posx, posy int32) {
 		0)
 }
 
+// MouseMoveWheel move mouse wheel(side)
 func MouseMoveWheel(scroll int32) {
 	bit := WHEEL
 	scroll *= WHEEL_DELTA
@@ -291,6 +328,7 @@ func MouseMoveWheel(scroll int32) {
 		0)
 }
 
+// MouseMoveHWheel move mouse wheel(height)
 func MouseMoveHWheel(scroll int32) {
 	bit := HWHEEL
 	scroll *= WHEEL_DELTA
@@ -312,6 +350,7 @@ func MouseMoveHWheel(scroll int32) {
 //     r1, _, e1 := syscall.Syscall(getKeyboardState.Addr(), 1, uintptr(unsafe.Pointer(&buf)), 0, 0)
 // }
 
+// GetAsyncKeyState virtual key
 func GetAsyncKeyState(vkey byte) int {
     r1, _, _ := getAsyncKeyState.Call(uintptr(vkey))
     return int(uint16(r1))
@@ -508,6 +547,7 @@ var keymaps map[string]byte = map[string]byte{
     "ZOOM": 0xfb,    
 }
 
+// PressedKey key check pressed
 func PressedKey(key string) bool {
     v, ok := keymaps[key]
     if ok {
@@ -515,6 +555,12 @@ func PressedKey(key string) bool {
     }
     fmt.Println("not found key name: ", key)
     return  false
+}
+
+// IsValidKey valid key
+func IsValidKey(key string) (ok bool) {
+    _, ok = keymaps[key]
+    return
 }
 
 func printTreeClassNameSub(hwnd HWND, nest int) {
@@ -531,6 +577,7 @@ func printTreeClassNameSub(hwnd HWND, nest int) {
     }
 }
 
+// PrintTreeClassName print class name
 func PrintTreeClassName(hwnd HWND) {
     // hwnd = GetDesktopWindow()
     fmt.Println("--- PrintTreeClassName ---")
