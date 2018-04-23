@@ -563,6 +563,14 @@ func IsValidKey(key string) (ok bool) {
     return
 }
 
+// KeyList valid key list
+func KeyList() (list []string) {
+    for k, _ := range keymaps {
+        list = append(list, k)
+    }
+    return
+}
+
 func printTreeClassNameSub(hwnd HWND, nest int) {
     space := ""
     for n := 0; n < nest; n++ {
