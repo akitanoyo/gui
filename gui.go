@@ -66,6 +66,12 @@ func SendMessage(hwnd HWND, msg ,wparam, lparam uint32) {
     syscall.Syscall6(sendMessage.Addr(), 4, uintptr(hwnd), uintptr(msg),uintptr(wparam), uintptr(lparam), 0, 0)
 }
 
+// SetWindowText send wm_settext message
+func SetWindowText(hwnd HWND, text string) {
+    ptext    := unsafe.Pointer(syscall.StringToUTF16Ptr(text))
+    syscall.Syscall6(sendMessage.Addr(), 4, uintptr(hwnd), uintptr(WM_SETTEXT),uintptr(0),uintptr(ptext), 0, 0)
+}
+
 // CloseWindow close window
 func CloseWindow(hwnd HWND) {
 	SendMessage(hwnd, WM_CLOSE, 0, 0)
