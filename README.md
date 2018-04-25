@@ -1,6 +1,7 @@
 # gui
-golang windows gui
+golang windows gui  
 
-test|
--|
+end  
+
+remake wu32 (User32.lib)  
 

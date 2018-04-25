@@ -3,7 +3,7 @@ package gui
 import (
     "fmt"
     "syscall"
-	"unsafe"
+    "unsafe"
 )
 
 //////////////////////////////////////////////////////////////
@@ -15,14 +15,26 @@ import (
 // func Syscall12(trap, nargs, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12 uintptr) ...
 // func Syscall15(trap, nargs, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15 uintptr) ...
 
+var _ unsafe.Pointer
+
+// Do the interface allocations only once for common
+// Errno values.
+const (
+	errnoERROR_IO_PENDING = 997
+)
+
+var (
+	errERROR_IO_PENDING error = syscall.Errno(errnoERROR_IO_PENDING)
+)
+
 // POINT pos
 type POINT struct {
-	X, Y int32
+    X, Y int32
 }
 
 // RECT window rect
 type RECT struct {
-	Left, Top, Right, Bottom int32
+    Left, Top, Right, Bottom int32
 }
 
 // HWND windows window handle
@@ -35,7 +47,9 @@ var (
     setCursorPos     = mod.NewProc("SetCursorPos")
 
     getDesktopWindow = mod.NewProc("GetDesktopWindow")
+    findWindow       = mod.NewProc("FindWindowW")
     enumChildWindows = mod.NewProc("EnumChildWindows")
+    
     getWindowRect    = mod.NewProc("GetWindowRect")
     setWindowPos     = mod.NewProc("SetWindowPos")
     // getWindowLong    = mod.NewProc("GetWindowLong") // x
@@ -53,6 +67,21 @@ var (
 
     messageBox       = mod.NewProc("MessageBoxW")
 )
+
+// errnoErr returns common boxed Errno values, to prevent
+// allocations at runtime.
+func errnoErr(e syscall.Errno) error {
+	switch e {
+	case 0:
+		return nil
+	case errnoERROR_IO_PENDING:
+		return errERROR_IO_PENDING
+	}
+	// TODO: add more here, after collecting data on the common
+	// error values see on Windows. (perhaps when running
+	// all.bat?)
+	return e
+}
 
 // MessageBox popup messagebox
 func MessageBox(hwnd HWND, text, caption string, btype uint32) {
@@ -74,7 +103,7 @@ func SetWindowText(hwnd HWND, text string) {
 
 // CloseWindow close window
 func CloseWindow(hwnd HWND) {
-	SendMessage(hwnd, WM_CLOSE, 0, 0)
+    SendMessage(hwnd, WM_CLOSE, 0, 0)
 }
 
 // GetCursorPos get cursor pos
@@ -95,88 +124,116 @@ func GetDesktopWindow() HWND {
      return HWND(r1)
 }
 
+// FindWindow find className and windowName
+//  ex: wnd := FindWindow("", "testwindow")
+func FindWindow(className, windowName string) (w HWND, err error) {
+    var cn unsafe.Pointer
+    var wn unsafe.Pointer
+    if len(className) > 0 {
+        cn = unsafe.Pointer(syscall.StringToUTF16Ptr(className))
+    }
+    if len(windowName) > 0 {
+        wn = unsafe.Pointer(syscall.StringToUTF16Ptr(windowName))
+    }
+   
+    // hwnd, _, _ := findWindow.Call(uintptr(cn), uintptr(wn), 0)
+    // w = HWND(hwnd)
+	r0, _, e1 := syscall.Syscall(findWindow.Addr(),
+        2, uintptr(cn), uintptr(wn), 0)
+	w = HWND(r0)
+	if w == 0 {
+		if e1 != 0 {
+			err = errnoErr(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+
+    return
+}
+
 // GetWindowText get window text(title)
 func GetWindowText(h HWND) string {
-	const bufSiz = 512
-	var buf [bufSiz]uint16
+    const bufSiz = 512
+    var buf [bufSiz]uint16
 
-	siz, _, _ := getWindowText.Call(uintptr(h), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
-	if siz == 0 {
-		return ""
-	}
-	name := syscall.UTF16ToString(buf[:siz])
-	if siz == bufSiz-1 {
-		name = name + "\u22EF"
-	}
-	return name
+    siz, _, _ := getWindowText.Call(uintptr(h), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+    if siz == 0 {
+        return ""
+    }
+    name := syscall.UTF16ToString(buf[:siz])
+    if siz == bufSiz-1 {
+        name = name + "\u22EF"
+    }
+    return name
 }
 
 // GetClassName get class name
 func GetClassName(h HWND) string {
-	const bufSiz = 512
-	var buf [bufSiz]uint16
+    const bufSiz = 512
+    var buf [bufSiz]uint16
 
-	siz, _, _ := getClassName.Call(uintptr(h), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
-	if siz == 0 {
-		return ""
-	}
-	name := syscall.UTF16ToString(buf[:siz])
-	if siz == bufSiz-1 {
-		name = name + "\u22EF"
-	}
-	return name
+    siz, _, _ := getClassName.Call(uintptr(h), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+    if siz == 0 {
+        return ""
+    }
+    name := syscall.UTF16ToString(buf[:siz])
+    if siz == bufSiz-1 {
+        name = name + "\u22EF"
+    }
+    return name
 }
 
 // GetChildWindows get child windows
 func GetChildWindows(h HWND) []HWND {
-	hwnds := []HWND{};
-	f := func(h HWND, lparam uintptr) int {
-		// name := GetWindowText(h)
-		// fmt.Println("NNNN: ", name)
-		hwnds = append(hwnds, h)
-		return 1
-	}
-	enumChildWindows.Call(uintptr(h), syscall.NewCallback(f), 0)
-	return hwnds
+    hwnds := []HWND{};
+    f := func(h HWND, lparam uintptr) int {
+        // name := GetWindowText(h)
+        // fmt.Println("NNNN: ", name)
+        hwnds = append(hwnds, h)
+        return 1
+    }
+    enumChildWindows.Call(uintptr(h), syscall.NewCallback(f), 0)
+    return hwnds
 }
 
 // GetWindowRect get window rect
 func GetWindowRect(h HWND) RECT {
-	r := RECT{}
-	getWindowRect.Call(uintptr(h),
-		uintptr(unsafe.Pointer(&r.Left)),
-		uintptr(unsafe.Pointer(&r.Top)),
-		uintptr(unsafe.Pointer(&r.Right)),
-		uintptr(unsafe.Pointer(&r.Bottom)))
-	return r
+    r := RECT{}
+    getWindowRect.Call(uintptr(h),
+        uintptr(unsafe.Pointer(&r.Left)),
+        uintptr(unsafe.Pointer(&r.Top)),
+        uintptr(unsafe.Pointer(&r.Right)),
+        uintptr(unsafe.Pointer(&r.Bottom)))
+    return r
 }
 
 // SetWindowPos set window poss
 func SetWindowPos(h HWND, posx, posy, posex, posey int32) {
-	width  := posex - posx
-	height := posey - posy
-	syscall.Syscall9(setWindowPos.Addr(), 7,
-		uintptr(h),
-		0,
-		uintptr(posx),
-		uintptr(posy),
-		uintptr(width),
-		uintptr(height),
-		0,
-		0,0)
+    width  := posex - posx
+    height := posey - posy
+    syscall.Syscall9(setWindowPos.Addr(), 7,
+        uintptr(h),
+        0,
+        uintptr(posx),
+        uintptr(posy),
+        uintptr(width),
+        uintptr(height),
+        0,
+        0,0)
 }
 
 // SetWindowSize set window pos and size
 func SetWindowSize(h HWND, posx, posy, width, height int32) {
-	syscall.Syscall9(setWindowPos.Addr(), 7,
-		uintptr(h),
-		0,
-		uintptr(posx),
-		uintptr(posy),
-		uintptr(width),
-		uintptr(height),
-		0,
-		0,0)
+    syscall.Syscall9(setWindowPos.Addr(), 7,
+        uintptr(h),
+        0,
+        uintptr(posx),
+        uintptr(posy),
+        uintptr(width),
+        uintptr(height),
+        0,
+        0,0)
 }
 
 // --> panic: Failed to find GetWindowLong procedure in user32.dll: The specified procedure could not be found.
@@ -199,151 +256,151 @@ func SetWindowSize(h HWND, posx, posy, width, height int32) {
     
 const (
     // LEFTDOWN mouse button
-	LEFTDOWN   = 0x00000002
+    LEFTDOWN   = 0x00000002
     // LEFTUP mouse button
-	LEFTUP     = 0x00000004
+    LEFTUP     = 0x00000004
     // MIDDLEDOWN mouse button
-	MIDDLEDOWN = 0x00000020
+    MIDDLEDOWN = 0x00000020
     // MIDDLEUP mouse button
-	MIDDLEUP   = 0x00000040
+    MIDDLEUP   = 0x00000040
     // MOVE mouse button
-	MOVE       = 0x00000001
+    MOVE       = 0x00000001
     // ABSOLUTE mouse button
-	ABSOLUTE   = 0x00008000
+    ABSOLUTE   = 0x00008000
     // RIGHTDOWN mouse button
-	RIGHTDOWN  = 0x00000008
+    RIGHTDOWN  = 0x00000008
     // RIGHTUP mouse button
-	RIGHTUP    = 0x00000010
+    RIGHTUP    = 0x00000010
     // WHEEL mouse button
-	WHEEL      = 0x00000800
+    WHEEL      = 0x00000800
     // HWHEEL mouse button
     HWHEEL     = 0x00001000
 )
 
 // MouseMoveAbs mouse move absolute
 func MouseMoveAbs(x, y int) {
-	bit := MOVE | ABSOLUTE
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		uintptr(x),uintptr(y),
+    bit := MOVE | ABSOLUTE
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        uintptr(x),uintptr(y),
         0,0,0)
 }
 
 // MouseMoveRel mouse move relocate
 func MouseMoveRel(x, y int) {
-	bit := MOVE
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		uintptr(x),uintptr(y),
-		0,0,0)
+    bit := MOVE
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        uintptr(x),uintptr(y),
+        0,0,0)
 }
 
 // MouseLButtonDown mouse button down(left)
 func MouseLButtonDown() {
-	bit := LEFTDOWN
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    bit := LEFTDOWN
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // MouseLButtonUp mouse button up(left)
 func MouseLButtonUp() {
-	bit := LEFTUP
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    bit := LEFTUP
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // MouseRButtonDown mouse button down(right)
 func MouseRButtonDown() {
-	bit := RIGHTDOWN
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    bit := RIGHTDOWN
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // MouseRButtonUp mouse button up(right)
 func MouseRButtonUp() {
-	bit := RIGHTUP
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    bit := RIGHTUP
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // MouseMButtonDown mouse button down(middle)
 func MouseMButtonDown() {
-	bit := MIDDLEDOWN
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    bit := MIDDLEDOWN
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // MouseMButtonUp mouse button up(middle)
 func MouseMButtonUp() {
-	bit := MIDDLEUP
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    bit := MIDDLEUP
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // ClickMouseLeft click pos left button
 func ClickMouseLeft(posx, posy int32) {
-	SetCursorPos(posx, posy)
-	bit := LEFTDOWN | LEFTUP
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    SetCursorPos(posx, posy)
+    bit := LEFTDOWN | LEFTUP
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // ClickMouseRight click pos right button
 func ClickMouseRight(posx, posy int32) {
-	SetCursorPos(posx, posy)
-	bit := RIGHTDOWN | RIGHTUP
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    SetCursorPos(posx, posy)
+    bit := RIGHTDOWN | RIGHTUP
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // ClickMouseMiddle click pos middle button
 func ClickMouseMiddle(posx, posy int32) {
-	SetCursorPos(posx, posy)
-	bit := MIDDLEDOWN | MIDDLEUP
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,0,0,
-		0)
+    SetCursorPos(posx, posy)
+    bit := MIDDLEDOWN | MIDDLEUP
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,0,0,
+        0)
 }
 
 // MouseMoveWheel move mouse wheel(side)
 func MouseMoveWheel(scroll int32) {
-	bit := WHEEL
-	scroll *= WHEEL_DELTA
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,
-		uintptr(scroll),
-		0,
-		0)
+    bit := WHEEL
+    scroll *= WHEEL_DELTA
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,
+        uintptr(scroll),
+        0,
+        0)
 }
 
 // MouseMoveHWheel move mouse wheel(height)
 func MouseMoveHWheel(scroll int32) {
-	bit := HWHEEL
-	scroll *= WHEEL_DELTA
-	syscall.Syscall6(mouse_event.Addr(), 5,
-		uintptr(bit),
-		0,0,
-		uintptr(scroll),
-		0,
-		0)
+    bit := HWHEEL
+    scroll *= WHEEL_DELTA
+    syscall.Syscall6(mouse_event.Addr(), 5,
+        uintptr(bit),
+        0,0,
+        uintptr(scroll),
+        0,
+        0)
 }
 
 // func GetKeyState(vkey int) int {
@@ -351,7 +408,7 @@ func MouseMoveHWheel(scroll int32) {
 //     return int(r1)
 // }
 // func GetKeyboardState(vkey uint8) {
-// 	const bufSiz = 256
+//  const bufSiz = 256
 //     var buf [bufSiz]byte
 //     r1, _, e1 := syscall.Syscall(getKeyboardState.Addr(), 1, uintptr(unsafe.Pointer(&buf)), 0, 0)
 // }
@@ -513,22 +570,22 @@ var keymaps map[string]byte = map[string]byte{
     "BROWSER_BACK" : 0xA6,
     "BROWSER_FORWARD": 0xA7,
     "BROWSER_REFRESH": 0xA8,
-    "BROWSER_STOP":	0xA9,
+    "BROWSER_STOP": 0xA9,
     "BROWSER_SEARCH": 0xAA,
     "BROWSER_FAVORITES": 0xAB,
-    "BROWSER_HOME":	0xAC,
-    "VOLUME_MUTE":	0xAD,
-    "VOLUME_DOWN":	0xAE,
-    "VOLUME_UP":	0xAF,
+    "BROWSER_HOME": 0xAC,
+    "VOLUME_MUTE":  0xAD,
+    "VOLUME_DOWN":  0xAE,
+    "VOLUME_UP":    0xAF,
 
-    "MEDIA_NEXT_TRACK":	0xB0,
-    "MEDIA_PREV_TRACK":	0xB1,
-    "MEDIA_STOP":	0xB2,
-    "MEDIA_PLAY_PAUSE":	0xB3,
-    "LAUNCH_MAIL":	0xB4,
-    "LAUNCH_MEDIA_SELECT":	0xB5,
-    "LAUNCH_APP1":	0xB6,
-    "LAUNCH_APP2":	0xB7,
+    "MEDIA_NEXT_TRACK": 0xB0,
+    "MEDIA_PREV_TRACK": 0xB1,
+    "MEDIA_STOP":   0xB2,
+    "MEDIA_PLAY_PAUSE": 0xB3,
+    "LAUNCH_MAIL":  0xB4,
+    "LAUNCH_MEDIA_SELECT":  0xB5,
+    "LAUNCH_APP1":  0xB6,
+    "LAUNCH_APP2":  0xB7,
     
     ":" : 0xba,
     "*" : 0xba,

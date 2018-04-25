@@ -24,3 +24,20 @@ func TestKeyList(t *testing.T) {
     }
 }
 
+func TestFindWindow(t *testing.T) {
+    wnd, err := FindWindow("", "lockmouse")
+    if err != nil {
+        t.Errorf("got find window...")
+    }
+
+    if wnd > 0 {
+        t.Logf("found lockmouse window\n")
+        cn := GetClassName(wnd)
+        t.Logf("classname %s\n", cn)
+        CloseWindow(wnd)
+        t.Logf("close window\n")
+    } else {
+        t.Logf("not found lockmouse window\n")
+    }
+}
+
